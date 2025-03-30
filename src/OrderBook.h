@@ -37,13 +37,13 @@ class OrderBook {
                     buyOrders.pop();
                     sellOrders.pop();
 
-                    buyOrder.remainingQuantity_ -= tradedQuantity;
-                    sellOrder.remainingQuantity_ -= tradedQuantity;
+                    buyOrder.setRemainingQuantity(buyOrder.getRemainingQuantity() - tradedQuantity);
+                    sellOrder.setRemainingQuantity(sellOrder.getRemainingQuantity() - tradedQuantity);
 
-                    if (buyOrder.quantity > 0) {
+                    if (buyOrder.getRemainingQuantity() > 0) {
                         buyOrders.push(buyOrder);
                     }
-                    if (sellOrder.quantity > 0) {
+                    if (sellOrder.getRemainingQuantity() > 0) {
                         sellOrders.push(sellOrder);
                     }
                 } else {
@@ -69,7 +69,7 @@ class OrderBook {
         void printQueue(std::priority_queue<Order> orders) {
             while (!orders.empty()) {
                 Order order = orders.top();
-                std::cout << "ID: " << order.id << " | Price: " << order.price << " | Quantity: " << order.quantity << "\n";
+                std::cout << "ID: " << order.getOrderId() << " | Price: " << order.getPrice() << " | Remaining quantity: " << order.getRemainingQuantity() << "\n";
                 orders.pop();
             }
         }

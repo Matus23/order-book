@@ -33,6 +33,10 @@ class Order {
         int getRemainingQuantity() const {return remainingQuantity_;}
         bool isFilled() const {return getRemainingQuantity() == 0;}
 
+        void setRemainingQuantity(int quantity) {
+            remainingQuantity_ = quantity;
+        }
+
         // Operator overloading for priority queue (max heap for buys, min heap for sells)
         bool operator<(const Order& other) const {
             if (side_ == Side::Buy) {
