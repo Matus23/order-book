@@ -1,0 +1,207 @@
+from enum import Enum
+
+
+class Side(Enum):
+    BUY = 1
+    SELL = -1
+
+
+class Order:
+    def __init__(self, order_id, side, shares, limit_price, entry_time):
+        self.order_id = order_id
+        self.side = side
+        self.shares = shares
+        self.limit_price = limit_price
+        self.entry_time = entry_time
+
+        # Doubly linked list pointers (within a Limit)
+        self.prev_order = None
+        self.next_order = None
+
+        # Back pointer to parent Limit
+        self.parent_limit = None
+
+    def __repr__(self):
+        return f"Order(id={self.order_id}, shares={self.shares})"
+
+
+class Limit:
+    def __init__(self, limit_price):
+        self.limit_price = limit_price
+
+        # Aggregates
+        self.size = 0
+        self.total_volume = 0
+
+        # BST pointers
+        self.parent = None
+        self.left = None
+        self.right = None
+
+        # FIFO queue of orders
+        self.head_order = None
+        self.tail_order = None
+
+    def append_order(self, order: Order):
+        """Append order to FIFO queue (O(1))"""
+        order.parent_limit = self
+
+        if self.tail_order is None:
+            self.head_order = self.tail_order = order
+        else:
+            self.tail_order.next_order = order
+            order.prev_order = self.tail_order
+            self.tail_order = order
+
+        self.size += 1
+        self.total_volume += order.shares
+
+    def remove_order(self, order: Order):
+        """Remove order from FIFO queue (O(1))"""
+        if order.prev_order:
+            order.prev_order.next_order = order.next_order
+        else:
+            self.head_order = order.next_order
+
+        if order.next_order:
+            order.next_order.prev_order = order.prev_order
+        else:
+            self.tail_order = order.prev_order
+
+        self.size -= 1
+        self.total_volume -= order.shares
+
+        order.prev_order = None
+        order.next_order = None
+        order.parent_limit = None
+
+    def __repr__(self):
+        return f"Limit(price={self.limit_price}, size={self.size}, vol={self.total_volume})"
+
+
+class OrderBook:
+    def __init__(self):
+        # Root nodes
+        self.buy_tree = None
+        self.sell_tree = None
+
+        # Inside market
+        self.best_bid = None
+        self.best_ask = None
+
+        # Hash maps
+        self.orders_by_id = {}
+        self.limits_by_price = {}
+
+    # -------------------------
+    # BST helpers
+    # -------------------------
+
+    def _bst_insert(self, root, limit, side):
+        if root is None:
+            return limit
+
+        if limit.limit_price < root.limit_price:
+            root.left = self._bst_insert(root.left, limit, side)
+            root.left.parent = root
+        else:
+            root.right = self._bst_insert(root.right, limit, side)
+            root.right.parent = root
+
+        return root
+
+    def _bst_min(self, node):
+        while node.left:
+            node = node.left
+        return node
+
+    def _bst_max(self, node):
+        while node.right:
+            node = node.right
+        return node
+
+    # -------------------------
+    # Core operations
+    # -------------------------
+
+    def add_order(self, order_id, side, shares, limit_price, entry_time):
+        if order_id in self.orders_by_id:
+            raise ValueError("Duplicate order ID")
+
+        order = Order(order_id, side, shares, limit_price, entry_time)
+
+        # Get or create limit
+        limit = self.limits_by_price.get(limit_price)
+        is_new_limit = False
+
+        if limit is None:
+            limit = Limit(limit_price)
+            self.limits_by_price[limit_price] = limit
+            is_new_limit = True
+
+            if side == Side.BUY:
+                self.buy_tree = self._bst_insert(self.buy_tree, limit, side)
+                if self.best_bid is None or limit_price > self.best_bid.limit_price:
+                    self.best_bid = limit
+            else:
+                self.sell_tree = self._bst_insert(self.sell_tree, limit, side)
+                if self.best_ask is None or limit_price < self.best_ask.limit_price:
+                    self.best_ask = limit
+
+        limit.append_order(order)
+        self.orders_by_id[order_id] = order
+
+    def cancel_order(self, order_id):
+        order = self.orders_by_id.get(order_id)
+        if order is None:
+            return
+
+        limit = order.parent_limit
+        limit.remove_order(order)
+        del self.orders_by_id[order_id]
+
+        # Note: limit removal from BST omitted for clarity
+        # (would be O(log M), rarely triggered)
+
+    def execute_best(self):
+        """Execute against inside market (one order, FIFO)"""
+        if self.best_bid is None or self.best_ask is None:
+            return None
+
+        if self.best_bid.limit_price < self.best_ask.limit_price:
+            return None  # No crossing
+
+        buy_order = self.best_bid.head_order
+        sell_order = self.best_ask.head_order
+
+        traded = min(buy_order.shares, sell_order.shares)
+
+        buy_order.shares -= traded
+        sell_order.shares -= traded
+
+        self.best_bid.total_volume -= traded
+        self.best_ask.total_volume -= traded
+
+        if buy_order.shares == 0:
+            self.best_bid.remove_order(buy_order)
+            del self.orders_by_id[buy_order.order_id]
+
+        if sell_order.shares == 0:
+            self.best_ask.remove_order(sell_order)
+            del self.orders_by_id[sell_order.order_id]
+
+        return traded
+
+    # -------------------------
+    # Queries
+    # -------------------------
+
+    def get_best_bid(self):
+        return self.best_bid.limit_price if self.best_bid else None
+
+    def get_best_ask(self):
+        return self.best_ask.limit_price if self.best_ask else None
+
+    def get_volume_at_price(self, price):
+        limit = self.limits_by_price.get(price)
+        return limit.total_volume if limit else 0
