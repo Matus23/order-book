@@ -35,7 +35,7 @@ class EventGenerator:
         dt_mean: float = 0.001,
     ):
         self.rng = random.Random(seed)
-        self.start_price = start_price
+        self.mid_price = start_price
         self.price_spread = price_spread
         self.max_qty = max_qty
         self.cancel_prob = cancel_prob

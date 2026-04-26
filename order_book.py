@@ -1,9 +1,9 @@
 from enum import Enum
 import logging_utils
 
-class Side(Enum):
-    BUY = 1
-    SELL = -1
+class Side(str, Enum):
+    BUY = "buy"
+    SELL = "sell"
 
 
 class Order:
@@ -125,18 +125,18 @@ class OrderBook:
     # -------------------------
 
     def add_order(self, order_id, side, shares, limit_price, entry_time):
-        logging_utils.log_event(
-            "ADD",
-            time=order.entry_time,
-            order_id=order.id,
-            side=order.side,
-            price=order.price,
-            qty=order.qty,
-        )
         if order_id in self.orders_by_id:
             raise ValueError("Duplicate order ID")
 
         order = Order(order_id, side, shares, limit_price, entry_time)
+        logging_utils.log_event(
+            "ADD",
+            time=order.entry_time,
+            order_id=order.order_id,
+            side=order.side,
+            price=order.limit_price,
+            qty=order.shares,
+        )
 
         # Get or create limit
         limit = self.limits_by_price.get(limit_price)
@@ -165,8 +165,8 @@ class OrderBook:
             logging_utils.log_event("CANCEL_IGNORED", order_id=order_id)
             return
 
-        logging_utils.log_event("CANCEL", order_id=order_id, price=order.price,
-            side=order.side, remaining_qty=order.qty)
+        logging_utils.log_event("CANCEL", order_id=order_id, price=order.limit_price,
+            side=order.side, remaining_qty=order.shares)
         limit = order.parent_limit
         limit.remove_order(order)
         del self.orders_by_id[order_id]
