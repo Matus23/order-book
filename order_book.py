@@ -1,9 +1,10 @@
 from enum import Enum
+from datetime import datetime
 import logging_utils
 
 class Side(str, Enum):
-    BUY = "buy"
-    SELL = "sell"
+    BUY = "BUY"
+    SELL = "SELL"
 
 
 class Order:
@@ -184,14 +185,26 @@ class OrderBook:
 
         buy_order = self.best_bid.head_order
         sell_order = self.best_ask.head_order
-
         traded = min(buy_order.shares, sell_order.shares)
+        if buy_order.limit_price != sell_order.limit_price:
+            logging_utils.log_trade(
+                msg="Bid and ask prices do not match",
+                buy_price=buy_order.limit_price,
+                sell_price=sell_order.limit_price,
+                qty=traded)
 
         buy_order.shares -= traded
         sell_order.shares -= traded
 
         self.best_bid.total_volume -= traded
         self.best_ask.total_volume -= traded
+
+        logging_utils.log_trade(
+                time=datetime.utcnow().isoformat(),
+                buy_order_id=buy_order.order_id,
+                sell_order_id=sell_order.order_id,
+                qty=traded,
+                price=buy_order.limit_price)
 
         if buy_order.shares == 0:
             self.best_bid.remove_order(buy_order)

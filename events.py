@@ -1,15 +1,7 @@
 import random
 from dataclasses import dataclass
 from enum import Enum, auto
-
-class EventType(Enum):
-    ADD = auto()
-    CANCEL = auto()
-
-class Side(Enum):
-    BUY = 1
-    SELL = -1
-
+from order_book import Side
 
 @dataclass(frozen=True)
 class AddOrder:
@@ -53,10 +45,10 @@ class EventGenerator:
 
     def _random_price(self, side: Side) -> int:
         offset = self.rng.randint(0, self.price_spread)
-        if side == Side.BUY:
-            return self.mid_price - offset
-        else:
+        if self.rng.random() < 0.5:
             return self.mid_price + offset
+        else:
+            return self.mid_price - offset
         
     def _random_qty(self) -> int:
         # Heavy-ish tail
