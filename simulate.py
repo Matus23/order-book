@@ -31,7 +31,7 @@ def match_book(book: OrderBook):
 
 for event in gen.generate(10_000):
     if isinstance(event, AddOrder):
-        book.add_order(
+        book.submit_order(
             order_id=event.order_id,
             side=event.side,
             shares=event.qty,
@@ -40,4 +40,3 @@ for event in gen.generate(10_000):
         )
     elif isinstance(event, CancelOrder):
         book.cancel_order(event.order_id)
-    match_book(book)

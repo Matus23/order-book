@@ -14,6 +14,8 @@ class Order:
         self.shares = shares
         self.limit_price = limit_price
         self.entry_time = entry_time
+        self.created_time = datetime.utcnow().isoformat()
+        self.filled_time = None
 
         # Doubly linked list pointers (within a Limit)
         self.prev_order = None
@@ -175,14 +177,47 @@ class OrderBook:
         # Note: limit removal from BST omitted for clarity
         # (would be O(log M), rarely triggered)
 
-    def execute_best(self):
-        """Execute against inside market (one order, FIFO)"""
-        if self.best_bid is None or self.best_ask is None:
-            return None
+    def _can_match(self, limit_price, side):
+        if side == Side.BUY:
+            return self.best_ask and limit_price >= self.best_ask.limit_price
+        else:
+            return self.best_bid and limit_price <= self.best_bid.limit_price
 
-        if self.best_bid.limit_price < self.best_ask.limit_price:
-            return None  # No crossing
+    def submit_order(self, order_id, side, shares, limit_price, entry_time):
+        """Tries to match new order. If unsuccessful or partially matched,
+            adds rest of the order to Order Book"""
+        resting_side = self.best_ask if side == Side.BUY else self.best_bid
+        while shares > 0 and self._can_match(limit_price, side) and resting_side.head_order:
+            traded = min(shares, resting_side.head_order.shares)
+            resting_side.head_order.shares -= traded
+            trade_price = resting_side.limit_price
+            if side == Side.BUY:
+                buy_order_id = order_id
+                sell_order_id = self.best_ask.head_order.order_id
+            else:
+                buy_order_id = self.best_bid.head_order.order_id
+                sell_order_id = order_id
 
+            if resting_side.head_order.shares == 0:
+                del_order_id = resting_side.head_order.order_id
+                resting_side.remove_order(resting_side.head_order)
+                del self.orders_by_id[del_order_id]
+
+            shares -= traded
+            logging_utils.log_trade(
+                time=datetime.utcnow().isoformat(),
+                buy_order_id=buy_order_id,
+                sell_order_id=sell_order_id,
+                qty=traded,
+                price=trade_price,
+                fill='PARTIAL' if shares > 0 else 'FULL')
+
+        if shares > 0:
+            self.add_order(order_id, side, shares, limit_price, entry_time)
+
+    def execute_order(self, order_id):
+        """OBSOLETE - REFACTOR submit_order
+        Execute against inside market (one order, FIFO)"""
         buy_order = self.best_bid.head_order
         sell_order = self.best_ask.head_order
         traded = min(buy_order.shares, sell_order.shares)
