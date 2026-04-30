@@ -21,10 +21,10 @@ def setup_logger(name, filename, level=logging.INFO):
 
 
 # Core logs
-event_logger = setup_logger("events", "logs/events.log")
-trade_logger = setup_logger("trades", "logs/trades.log")
-snapshot_logger = setup_logger("snapshots", "logs/snapshots.log")
-error_logger = setup_logger("errors", "logs/errors.log")
+event_logger = setup_logger("events", "../logs/events.log")
+trade_logger = setup_logger("trades", "../logs/trades.log")
+snapshot_logger = setup_logger("snapshots", "../logs/snapshots.log")
+error_logger = setup_logger("errors", "../logs/errors.log")
 
 
 def log_event(event_type, **kwargs):
