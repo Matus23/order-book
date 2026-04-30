@@ -1,10 +1,10 @@
+import logging_utils
+import argparse
+import time
+
 from order_book import OrderBook, Side
 from events import EventGenerator, AddOrder, CancelOrder
-import logging_utils
 from datetime import datetime
-
-book = OrderBook()
-gen = EventGenerator(seed=123)
 
 def match_book(book: OrderBook):
     """Match top-of-book until no crossing remains, logging trades."""
@@ -29,14 +29,34 @@ def match_book(book: OrderBook):
                 price=price,
             )
 
-for event in gen.generate(10_000):
-    if isinstance(event, AddOrder):
-        book.submit_order(
-            order_id=event.order_id,
-            side=event.side,
-            shares=event.qty,
-            limit_price=event.price,
-            entry_time=event.time,
-        )
-    elif isinstance(event, CancelOrder):
-        book.cancel_order(event.order_id)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--events", type=int, default=10_000, help="Number of events to generate")
+    parser.add_argument("--seed", type=int, default=123, help="RNG seed")
+    parser.add_argument("--disable-logging", action="store_true", help="Disable file logging during run")
+    args = parser.parse_args()
+
+    gen = EventGenerator(seed=args.seed)
+    book = OrderBook()
+
+    if args.disable_logging:
+        logging_utils.event_logger.disabled = True
+        logging_utils.trade_logger.disabled = True
+        logging_utils.snapshot_logger.disabled = True
+        logging_utils.error_logger.disabled = True
+
+    start = time.perf_counter()
+    for event in gen.generate(args.events):
+        if isinstance(event, AddOrder):
+            book.submit_order(
+                order_id=event.order_id,
+                side=event.side,
+                shares=event.qty,
+                limit_price=event.price,
+                entry_time=event.time,
+            )
+        elif isinstance(event, CancelOrder):
+            book.cancel_order(event.order_id)
+
+    elapsed = time.perf_counter() - start
+    print(f"events={args.events} elapsed_s={elapsed:.4f} events/s={args.events/elapsed:.0f}")
