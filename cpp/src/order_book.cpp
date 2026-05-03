@@ -11,6 +11,8 @@ namespace ob {
 
 enum class Side {BUY, SELL};
 
+enum class FillType {FULL, PARTIAL};
+
 struct Order {
     int order_id;
     Side side;
