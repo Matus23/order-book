@@ -122,6 +122,49 @@ class OrderBook:
         while node.right:
             node = node.right
         return node
+    
+    def _bst_remove(self, root, limit):
+        """Remove a limit node from BST, returns new root."""
+        if root is None:
+            return None
+        if limit.limit_price < root.limit_price:
+            root.left = self._bst_remove(root.left, limit)
+            if root.left:
+                root.left.parent = root
+        elif limit.limit_price > root.limit_price:
+            root.right = self._bst_remove(root.right, limit)
+            if root.right:
+                root.right.parent = root
+        else:
+            # Found the node to remove
+            if root.left is None:
+                replacement = root.right
+                if replacement:
+                    replacement.parent = root.parent
+                return replacement
+            elif root.right is None:
+                replacement = root.left
+                if replacement:
+                    replacement.parent = root.parent
+                return replacement
+            else:
+                # Two children: replace with in-order successor, then delete successor
+                successor = self._bst_min(root.right)
+                root.limit_price = successor.limit_price
+                root.head_order = successor.head_order
+                root.tail_order = successor.tail_order
+                root.size = successor.size
+                root.total_volume = successor.total_volume
+                # re-point orders to new parent node
+                o = root.head_order
+                while o:
+                    o.parent_limit = root
+                    o = o.next_order
+                self.limits_by_price[root.limit_price] = root
+                root.right = self._bst_remove(root.right, successor)
+                if root.right:
+                    root.right.parent = root
+        return root
 
     # -------------------------
     # Core operations
@@ -171,11 +214,10 @@ class OrderBook:
         logging_utils.log_event("CANCEL", order_id=order_id, price=order.limit_price,
             side=order.side, remaining_qty=order.shares)
         limit = order.parent_limit
+        side = order.side
         limit.remove_order(order)
         del self.orders_by_id[order_id]
-
-        # Note: limit removal from BST omitted for clarity
-        # (would be O(log M), rarely triggered)
+        self._remove_limit_if_empty(limit, side)
 
     def _can_match(self, limit_price, side):
         if side == Side.BUY:
@@ -184,13 +226,18 @@ class OrderBook:
             return self.best_bid and limit_price <= self.best_bid.limit_price
 
     def submit_order(self, order_id, side, shares, limit_price, entry_time):
-        """Tries to match new order. If unsuccessful or partially matched,
-            adds rest of the order to Order Book"""
-        resting_side = self.best_ask if side == Side.BUY else self.best_bid
-        while shares > 0 and self._can_match(limit_price, side) and resting_side.head_order:
+        """
+        Tries to match new order. Keeps matching the order as long as possible
+        If unsuccessful or partially filled, adds rest of the order to Order Book
+        """
+        while shares > 0 and self._can_match(limit_price, side):
+            # resting_side needs to be inside the loop for multi-price-level orders
+            # that might update best_bid/best_ask when orders at the best price run out
+            resting_side = self.best_ask if side == Side.BUY else self.best_bid
             traded = min(shares, resting_side.head_order.shares)
-            resting_side.head_order.shares -= traded
             trade_price = resting_side.limit_price
+            resting_side.head_order.shares -= traded
+            shares -= traded
             if side == Side.BUY:
                 buy_order_id = order_id
                 sell_order_id = self.best_ask.head_order.order_id
@@ -202,8 +249,9 @@ class OrderBook:
                 del_order_id = resting_side.head_order.order_id
                 resting_side.remove_order(resting_side.head_order)
                 del self.orders_by_id[del_order_id]
+                resting_side_side = Side.SELL if side == Side.BUY else Side.BUY
+                self._remove_limit_if_empty(resting_side, resting_side_side)
 
-            shares -= traded
             logging_utils.log_trade(
                 time=datetime.utcnow().isoformat(),
                 buy_order_id=buy_order_id,
@@ -214,6 +262,21 @@ class OrderBook:
 
         if shares > 0:
             self.add_order(order_id, side, shares, limit_price, entry_time)
+
+    def _remove_limit_if_empty(self, limit, side):
+        """Remove a limit from the BST and update best_bid/best_ask if exhausted."""
+        if limit.size > 0:
+            return
+        del self.limits_by_price[limit.limit_price]
+
+        if side == Side.BUY:
+            self.buy_tree = self._bst_remove(self.buy_tree, limit)
+            # next best bid is the largest remaining value in buy_tree
+            self.best_bid = self._bst_max(self.buy_tree) if self.buy_tree else None
+        else:
+            self.sell_tree = self._bst_remove(self.sell_tree, limit)
+            # next best ask is the smallest remaining value in sell_tree
+            self.best_ask = self._bst_min(self.sell_tree) if self.sell_tree else None
 
 
     # -------------------------
