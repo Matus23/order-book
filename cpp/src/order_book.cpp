@@ -108,29 +108,26 @@ public:
         int remaining = shares;
         // keep executing against the inside until order fully filled or no crossing
         while (remaining > 0) {
-            auto t = executeBest();
-            if (!t) break; // no crossing
-            // If incoming side matches the aggressor, we must apply outward matching - simplified:
-            // We'll match against the inside until no crossing, reducing remaining as appropriate.
-            // Determine how much to take from the best opposite order:
-            // choose opposite best order sizes directly by reading top orders
-            Limit *oppLimit = (side == Side::BUY) ? bestAskLimit() : bestBidLimit();
-            if (!oppLimit) break;
-            Order &oppOrder = oppLimit->orders.front();
+            Limit *restingLimit = (side == Side::BUY) ? bestAskLimit() : bestBidLimit();
+            // break if no match can be made
+            if (!restingLimit) break;
+            if (side == Side::BUY && restingLimit->limit_price > limit_price) break;
+            if (side == Side::SELL && restingLimit->limit_price < limit_price) break;
+
+            Order &oppOrder = restingLimit->orders.front();
             int take = std::min(remaining, oppOrder.shares);
             Trade tr;
             if (side == Side::BUY) {
                 tr.buy_order_id = order_id;
                 tr.sell_order_id = oppOrder.order_id;
-                tr.price = oppLimit->limit_price;
             } else {
                 tr.buy_order_id = oppOrder.order_id;
                 tr.sell_order_id = order_id;
-                tr.price = oppLimit->limit_price;
             }
+            tr.price = restingLimit->limit_price;
             tr.shares = take;
             // apply trade to book (reuse applyTrade helper)
-            applyTrade(oppLimit, take, oppOrder.order_id);
+            applyTrade(restingLimit, take, oppOrder.order_id);
             remaining -= take;
             trades.push_back(tr);
         }
