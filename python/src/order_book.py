@@ -230,10 +230,13 @@ class OrderBook:
         Tries to match new order. Keeps matching the order as long as possible
         If unsuccessful or partially filled, adds rest of the order to Order Book
         """
-        while shares > 0 and self._can_match(limit_price, side):
+        while shares > 0:
             # resting_side needs to be inside the loop for multi-price-level orders
             # that might update best_bid/best_ask when orders at the best price run out
             resting_side = self.best_ask if side == Side.BUY else self.best_bid
+            if not self._can_match(limit_price, side) or not resting_side or not resting_side.head_order:
+                break
+
             traded = min(shares, resting_side.head_order.shares)
             trade_price = resting_side.limit_price
             resting_side.head_order.shares -= traded
