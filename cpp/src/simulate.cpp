@@ -92,10 +92,11 @@ public:
         file.flush();
     }
 
-    void logTrade(int buy_id, int sell_id, int qty, int price, ob::FillType fillType) {
+    void logTrade(int buy_id, int sell_id, int qty, int price, ob::Side side, ob::FillType fillType) {
         if (!enabled) return;
         file << "[" << getCurrentDateTime() <<  "]" << "TRADE buy_order_id=" 
              << buy_id << " sell_order_id=" << sell_id
+             << " side=" << (side == ob::Side::BUY ? "BUY" : "SELL")
              << " qty=" << qty << " price=" << price 
              << " fill=" << (fillType == ob::FillType::FULL ? "FULL": "PARTIAL") << "\n";
         file.flush();
@@ -162,8 +163,7 @@ int main(int argc, char** argv) {
             auto trades = book.submitOrder(evt.order_id, evt.side, evt.shares, evt.price, evt.time);
             trade_count += trades.size();
             for (const auto& t : trades) {
-                ob::FillType ft = (t.shares == inc_shares) ? ob::FillType::FULL : ob::FillType::PARTIAL;
-                logger.logTrade(t.buy_order_id, t.sell_order_id, t.shares, t.price, ft);
+                logger.logTrade(t.buy_order_id, t.sell_order_id, t.shares, t.price, t.incoming_side, t.fill_type);
             }
             logger.logEvent("ADD", evt.order_id, evt.side, evt.shares, evt.price);
         } else {

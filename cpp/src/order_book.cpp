@@ -35,6 +35,8 @@ struct Trade {
     int buy_order_id;
     int sell_order_id;
     int price;
+    FillType fill_type;
+    Side incoming_side;
 };
 
 struct Limit {
@@ -126,9 +128,11 @@ public:
             }
             tr.price = restingLimit->limit_price;
             tr.shares = take;
+            tr.incoming_side = side;
             // apply trade to book (reuse applyTrade helper)
             applyTrade(restingLimit, take, oppOrder.order_id);
             remaining -= take;
+            tr.fill_type = (remaining == 0) ? FillType::FULL : FillType::PARTIAL;
             trades.push_back(tr);
         }
 
