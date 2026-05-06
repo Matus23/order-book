@@ -1,6 +1,5 @@
 #pragma once
 #include <vector>
-#include <list>
 #include <optional>
 #include <string>
 #include <chrono>
@@ -41,8 +40,13 @@ struct Trade {
     int buy_order_id;
     int sell_order_id;
     int price;
-    FillType fill_type;     // FULL if the incoming order was fully matched at this trade, PARTIAL otherwise
-    Side incoming_side;     // side of the order that triggered this trade
+};
+
+// Returned by submitOrder: all trades executed + fill outcome for the incoming order
+struct SubmitResult {
+    std::vector<Trade> trades;
+    FillType fill_type;   // FULL if incoming order was entirely matched, PARTIAL otherwise
+    Side incoming_side;
 };
 
 struct Limit {
@@ -69,7 +73,7 @@ public:
     virtual void cancelOrder(int order_id) = 0;
 
     // Submit an order: match immediately where possible, rest the remainder
-    virtual std::vector<Trade> submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) = 0;
+    virtual SubmitResult submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) = 0;
 
     // Queries
     virtual std::optional<int> bestBid() const = 0;

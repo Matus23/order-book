@@ -6,50 +6,12 @@
 #include <functional>
 #include <string>
 #include <chrono>
+#include "order_book_base.h"
 
 namespace ob {
 
-enum class Side {BUY, SELL};
 
-enum class FillType {FULL, PARTIAL};
-
-struct Order {
-    int order_id;
-    Side side;
-    int shares;
-    int limit_price;
-    double entry_time;
-    std::string created_time;
-
-    Order(int id, Side s, int sh, int price, double t)
-        : order_id(id), side(s), shares(sh), limit_price(price), entry_time(t) {
-            created_time = std::to_string(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()
-            ).count());
-        }
-};
-
-struct Trade {
-    int shares;
-    int buy_order_id;
-    int sell_order_id;
-    int price;
-    FillType fill_type;
-    Side incoming_side;
-};
-
-struct Limit {
-    int limit_price;
-    std::list<Order> orders; // FIFO queue
-    int size = 0;
-    long long total_volume = 0;
-
-    explicit Limit(int p): limit_price(p) {}
-};
-
-
-class OrderBook {
+class TreeOrderBook : public IOrderBook {
 
 private:
     std::map<int, Limit, std::greater<int>> bids;
@@ -76,10 +38,10 @@ private:
     }
 
 public:
-    OrderBook() = default;
+    TreeOrderBook() = default;
 
     // Add order as a new Order into the book (no matching here)
-    void addOrder(int order_id, Side side, int shares, int limit_price, double entry_time) {
+    void addOrder(int order_id, Side side, int shares, int limit_price, double entry_time) override {
         if (side == Side::BUY) {
             addOrderToTree(bids, order_id, side, shares, limit_price, entry_time);
         } else {
@@ -88,7 +50,7 @@ public:
     }
 
     // Cancel an existing order by id (no-op if not found)
-    void cancelOrder(int order_id) {
+    void cancelOrder(int order_id) override {
         auto o_it = orders_by_id.find(order_id);
         if (o_it == orders_by_id.end()) return;
         Limit *lim = o_it->second.limit;
@@ -105,7 +67,7 @@ public:
 
     // Submit order: try to match immediately; if any remainder, add to book
     // Returns vector of Trades executed (may be empty)
-    std::vector<Trade> submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) {
+    std::vector<Trade> submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) override {
         std::vector<Trade> trades;
         int remaining = shares;
         // keep executing against the inside until order fully filled or no crossing
@@ -143,41 +105,12 @@ public:
         return trades;
     }
 
-    // Execute one best-against-best match, return Trade if a match happened
-    std::optional<Trade> executeBest() {
-        auto bidIt = bids.begin();
-        auto askIt = asks.begin();
-        if (bidIt == bids.end() || askIt == asks.end()) return std::nullopt;
-        if (bidIt->first < askIt->first) return std::nullopt; // no crossing
-
-        Limit &buyL = bidIt->second;
-        Limit &sellL = askIt->second;
-        if (buyL.orders.empty() || sellL.orders.empty()) return std::nullopt;
-
-        Order &buyOrder = buyL.orders.front();
-        Order &sellOrder = sellL.orders.front();
-
-        int traded = std::min(buyOrder.shares, sellOrder.shares);
-        Trade tr;
-        tr.shares = traded;
-        tr.buy_order_id = buyOrder.order_id;
-        tr.sell_order_id = sellOrder.order_id;
-        // price convention: use sell (aggressed) price
-        tr.price = sellL.limit_price;
-
-        // apply fills
-        applyTrade(&buyL, traded, buyOrder.order_id);
-        applyTrade(&sellL, traded, sellOrder.order_id);
-
-        return tr;
-    }
-
     // Queries
-    std::optional<int> bestBid() const {
+    std::optional<int> bestBid() const override {
         if (bids.empty()) return std::nullopt;
         return bids.begin()->first;
     }
-    std::optional<int> bestAsk() const {
+    std::optional<int> bestAsk() const override {
         if (asks.empty()) return std::nullopt;
         return asks.begin()->first;
     }
