@@ -6,7 +6,7 @@
 #include <random>
 #include <deque>
 #include <sstream>
-#include "order_book.cpp"
+#include "tree_order_book.cpp"
 
 // Minimal event generator (C++ version of Python EventGenerator)
 class EventGenerator {
@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    ob::OrderBook book;
+    ob::TreeOrderBook book;
     EventGenerator gen(seed, cancel_prob, price_min, price_max);
     Logger logger("events.log");
 
