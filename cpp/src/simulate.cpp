@@ -9,8 +9,9 @@
 #include <deque>
 #include <memory>
 #include <unordered_map>
-#include "order_book/tree_order_book.h"
-#include "order_book/array_order_book.h"
+#include "order_book.h"
+#include "tree_order_book.cpp"
+#include "array_order_book.cpp"
 
 // -------------------------
 // EventGenerator

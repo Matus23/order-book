@@ -36,7 +36,7 @@ public:
         auto list_it = std::prev(lim->orders.end());
         lim->size += 1;
         lim->total_volume += shares;
-        orders_by_id.emplace(order_id, Entry{idx, list_it, side});
+        orders_by_id.try_emplace(order_id, Entry{idx, list_it, side});
 
         if (side == Side::BUY) {
             if (best_bid_idx < 0 || idx > best_bid_idx) best_bid_idx = idx;
@@ -174,7 +174,7 @@ private:
         if (side == Side::BUY && slot_idx == best_bid_idx) {
             best_bid_idx = updateBestBidAfterRemoval(slot_idx-1);
         } else if (side == Side::SELL && slot_idx == best_ask_idx) {
-            best_ask_idx = updateBestAskAfterRemoval(slot_idx-1);
+            best_ask_idx = updateBestAskAfterRemoval(slot_idx+1);
         }
     }
 
