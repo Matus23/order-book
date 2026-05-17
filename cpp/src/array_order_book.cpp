@@ -10,7 +10,7 @@
 
 namespace ob {
 
-class ArrayOrderBook : class IOrderBook {
+class ArrayOrderBook : public IOrderBook {
 
 public:
     ArrayOrderBook(double min_price, double max_price, double tick_size):
@@ -45,7 +45,7 @@ public:
         }
     }
 
-    void cancelOrder(int order_id) override {
+    void cancelOrder(int order_id) {
         auto o_it = orders_by_id.find(order_id);
         if (o_it == orders_by_id.end()) return;
 
@@ -62,7 +62,7 @@ public:
         removeLimitIfEmpty(slot_idx, side);
     }
 
-    std::vector<Trade> submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) override {
+    std::vector<Trade> submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) {
         std::vector<Trade> trades;
         int remaining = shares;
 
@@ -70,14 +70,14 @@ public:
             int resting_idx = (side == Side::BUY) ? best_ask_idx : best_bid_idx;
             if (resting_idx < 0) break;
             Limit* resting_limit = slots[resting_idx];
-            if (!resting_limit || resting_limit->order.empty()) break;
+            if (!resting_limit || resting_limit->orders.empty()) break;
 
             // check if match can occur based on MM's offer
             int incoming_idx = priceToIdx(limit_price);
             if (side == Side::BUY && resting_idx > incoming_idx) break;
             if (side == Side::SELL && resting_idx < incoming_idx) break;
 
-            Order& resting_order = resting_limit->order.front();
+            Order& resting_order = resting_limit->orders.front();
             int matched_shares = std::min(remaining, resting_order.shares);
 
             Trade tr;
@@ -94,9 +94,9 @@ public:
             }
 
             Side resting_side = (side == Side::BUY) ? Side::SELL : Side::BUY;
-            applyTrade(resting_idx, matched_shares, resting_order, order_id, resting_side);
+            applyTrade(resting_idx, matched_shares, resting_order.order_id, resting_side);
             remaining -= matched_shares;
-            tr.fill_type = (remaining == 0) ? FillType::FLL : FillType::PARTIAL;
+            tr.fill_type = (remaining == 0) ? FillType::FULL : FillType::PARTIAL;
             trades.push_back(tr);
         }
 
@@ -106,12 +106,12 @@ public:
         return trades;
     }
 
-    std::optional<int> bestBid() const override {
+    std::optional<int> bestBid() const {
         if (best_bid_idx < 0) return std::nullopt;
         return static_cast<int>(std::round(idxToPrice(best_bid_idx)));
     }
 
-    std::optional<int>bestAsk() const override {
+    std::optional<int>bestAsk() const {
         if (best_ask_idx < 0) return std::nullopt;
         return static_cast<int>(std::round(idxToPrice(best_ask_idx)));
     }
@@ -133,13 +133,13 @@ private:
         int slot_idx;
         std::list<Order>::iterator it;
         Side side;
-    }
+    };
     std::unordered_map<int, Entry> orders_by_id;
 
     int priceToIdx(double price) const {
-        int idx = static_cast<int>(std::((price-min_price) / tick_size));
+        int idx = static_cast<int>(std::round((price-min_price) / tick_size));
         if (idx < 0 || idx >= num_slots) return -1;
-        return idx
+        return idx;
     }
 
     double idxToPrice(int idx) const {
@@ -152,7 +152,7 @@ private:
                 return i;
             }
         }
-        return -1
+        return -1;
     }
 
     int updateBestAskAfterRemoval(int from_idx) {
@@ -161,10 +161,10 @@ private:
                 return i;
             }
         }
-        return -1
+        return -1;
     }
 
-    int removeLimitIfEmpty(int slot_idx, Side side) {
+    void removeLimitIfEmpty(int slot_idx, Side side) {
         Limit* lim = slots[slot_idx];
         if (!lim || !lim->orders.empty()) return;
 
@@ -173,7 +173,7 @@ private:
 
         if (side == Side::BUY && slot_idx == best_bid_idx) {
             best_bid_idx = updateBestBidAfterRemoval(slot_idx-1);
-        } else if (side == Side::ASK && slot_idx == best_ask_idx) {
+        } else if (side == Side::SELL && slot_idx == best_ask_idx) {
             best_ask_idx = updateBestAskAfterRemoval(slot_idx-1);
         }
     }
@@ -189,11 +189,11 @@ private:
         Order& order = *list_it;
 
         int matched_shares = std::min(qty, order.shares);
-        order.shares -= use;
-        lim->total_volume -= use;
+        order.shares -= matched_shares;
+        lim->total_volume -= matched_shares;
 
-        if (o.shares == 0) {
-            lim->order.erase(list_it);
+        if (order.shares == 0) {
+            lim->orders.erase(list_it);
             lim->size -= 1;
             orders_by_id.erase(o_it);
             removeLimitIfEmpty(slot_idx, resting_side);

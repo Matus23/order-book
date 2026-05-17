@@ -40,6 +40,8 @@ struct Trade {
     int buy_order_id;
     int sell_order_id;
     int price;
+    FillType fill_type;
+    Side incoming_side;
 };
 
 // Returned by submitOrder: all trades executed + fill outcome for the incoming order
@@ -73,7 +75,7 @@ public:
     virtual void cancelOrder(int order_id) = 0;
 
     // Submit an order: match immediately where possible, rest the remainder
-    virtual SubmitResult submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) = 0;
+    virtual std::vector<Trade> submitOrder(int order_id, Side side, int shares, int limit_price, double entry_time) = 0;
 
     // Queries
     virtual std::optional<int> bestBid() const = 0;

@@ -6,10 +6,9 @@
 #include <functional>
 #include <string>
 #include <chrono>
-#include "order_book_base.h"
+#include "order_book.h"
 
 namespace ob {
-
 
 class TreeOrderBook : public IOrderBook {
 
