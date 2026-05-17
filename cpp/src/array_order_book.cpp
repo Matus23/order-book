@@ -146,27 +146,25 @@ private:
         return min_price + idx * tick_size;
     }
 
-    void updateBestBidAfterRemoval(int from_idx) {
+    int updateBestBidAfterRemoval(int from_idx) {
         for (int i = from_idx; i>=0; i--) {
             if (slots[i] && !slots[i]->orders.empty()) {
-                best_bid_idx = i;
-                return;
+                return i;
             }
         }
-        best_bid_idx=-1;
+        return -1
     }
 
-    void updateBestAskAfterRemoval(int from_idx) {
+    int updateBestAskAfterRemoval(int from_idx) {
         for (int i=from_idx; i<num_slots; i++) {
             if (slots[i] && !slots[i]->orders.empty()) {
-                best_ask_idx = i;
-                return;
+                return i;
             }
         }
-        best_ask_idx = -1;
+        return -1
     }
 
-    void removeLimitIfEmpty(int slot_idx, Side side) {
+    int removeLimitIfEmpty(int slot_idx, Side side) {
         Limit* lim = slots[slot_idx];
         if (!lim || !lim->orders.empty()) return;
 
@@ -174,9 +172,9 @@ private:
         slots[slot_idx] = nullptr;
 
         if (side == Side::BUY && slot_idx == best_bid_idx) {
-            updateBestBidAfterRemoval(slot_idx-1);
+            best_bid_idx = updateBestBidAfterRemoval(slot_idx-1);
         } else if (side == Side::ASK && slot_idx == best_ask_idx) {
-            updateBestAskAfterRemoval(slot_idx-1);
+            best_ask_idx = updateBestAskAfterRemoval(slot_idx-1);
         }
     }
 
